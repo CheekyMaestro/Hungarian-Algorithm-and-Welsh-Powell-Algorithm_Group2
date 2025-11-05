@@ -258,4 +258,200 @@ plt.show()
 - **Strength**: simple, fast, produces compact colorings on many real graphs.
 - **Limitation**: heuristic; not guaranteed minimal colors.
 
-> You can drop this Markdown directly into your repo (e.g., `README.md`) or keep it as a separate `Welsh_Powell_Report.md` alongside the code.
+
+
+---
+
+## 1) Goal at a Glance
+The script solves the **assignment problem** (assign *n* workers to *n* jobs) with **minimum total cost** using the **Hungarian Algorithm** via SciPy’s `linear_sum_assignment`. The optimal pairs are then **printed** (pair list & total cost) and **visualized** as a bipartite graph (NetworkX + Matplotlib).
+
+> **Main input:** a 2D `cost_matrix` of shape `n × n`.  
+> **Main outputs:** the optimal pairs `(worker_i → job_j)` and the `Total Minimum Cost`.
+
+---
+
+## 2) Code Flow (block by block)
+1. **Import libraries:** `numpy`, `scipy.optimize.linear_sum_assignment`, `networkx`, `matplotlib.pyplot`  
+2. **Define data:** `cost_matrix`, `workers`, `jobs`  
+3. **Run Hungarian:** `row_ind, col_ind = linear_sum_assignment(cost_matrix)`  
+4. **Print results & sum cost:** iterate over indices → print pairs + accumulate cost  
+5. **Visualize bipartite graph:** build `nx.Graph()`, add edges with weights, mark the optimal edges, draw with a bipartite layout
+
+---
+
+## 3) Function Reference (purpose, parameters, return values)
+
+> Below are the **functions invoked by the script**. For each, we outline its purpose, key parameters, and what it returns.
+
+### 3.1. SciPy — Hungarian Algorithm
+- **`scipy.optimize.linear_sum_assignment(cost_matrix, maximize=False)`**  
+  - **Purpose:** Solve the *linear assignment problem* (Hungarian method).  
+  - **Key parameters:**
+    - `cost_matrix`: 2D `array_like` (square or rectangular). Smaller values are preferred (minimization).  
+    - `maximize` *(optional)*: defaults to `False` (minimization). Set `True` for **maximization** (larger is better).
+  - **Returns:** `(row_ind, col_ind)` — two 1D arrays of length `k` (usually `n` if square) describing the optimal pairing: worker `row_ind[i]` is paired with job `col_ind[i]`.
+  - **Note:** Time complexity is **O(n³)** for an `n × n` matrix (Hungarian algorithm).
+
+### 3.2. NumPy
+- **`np.array(list_of_lists)`**  
+  - Builds a 2D array for the `cost_matrix`.  
+  - Ensures consistent and fast indexing via `[i, j]`.
+
+### 3.3. NetworkX — Graph Building & Layout
+- **`nx.Graph()`**  
+  - Creates an **undirected** graph to model the worker–job bipartite relation.
+- **`G.add_nodes_from(iterable, bipartite=0|1)`**  
+  - Adds multiple nodes at once and tags a `bipartite` attribute (to separate the two partitions: workers vs. jobs).
+- **`G.add_edge(u, v, weight=value)`**  
+  - Adds an edge with a `weight` attribute taken from `cost_matrix[i][j]`.
+- **`nx.bipartite_layout(G, nodes)`**  
+  - Produces 2D coordinates that neatly separate the **two partitions** (`nodes` is the list of one side, e.g., `workers`).
+
+### 3.4. NetworkX — Drawing the Graph
+- **`nx.draw_networkx_nodes(G, pos, nodelist=..., node_color=..., node_size=..., label=...)`**  
+  - Draws nodes (workers and jobs) with different colors for clarity.
+- **`nx.draw_networkx_edges(G, pos, edge_color=..., width=...)`**  
+  - Draws all edges. In this script, optimal edges are **red & thick**, others are **gray & thin**.
+- **`nx.draw_networkx_labels(G, pos, font_size=...)`**  
+  - Renders node labels at positions `pos`.
+- **`nx.draw_networkx_edge_labels(G, pos, edge_labels=..., font_color=...)`**  
+  - Renders **edge weights** (costs) **only for the optimal edges** (set in `solution_edge_labels`).
+
+### 3.5. Matplotlib
+- **`plt.figure(figsize=(w, h))`**, **`plt.title(str)`**, **`plt.axis('off')`**, **`plt.show()`**  
+  - Sets up a plotting canvas, titles the figure, hides axes, and displays the final image.
+
+### 3.6. Python Built-ins
+- **`range`, `len`, `print`, `for` loops**  
+  - Iterate through the result pairs, index `cost_matrix[row, col]`, and print a summary.
+
+---
+
+## 4) Code Walkthrough (by structure)
+
+### (A) Imports
+```python
+import numpy as np
+from scipy.optimize import linear_sum_assignment
+import networkx as nx
+import matplotlib.pyplot as plt
+```
+- Loads all required packages.  
+- **Note:** Any `!pip install ...` lines are notebook-only. For a `.py` script, use `requirements.txt` or a virtual environment.
+
+### (B) Data Definition — Cost Matrix & Labels
+```python
+cost_matrix = np.array([
+    [82, 83, 69, 92],
+    [77, 37, 49, 92],
+    [11, 69,  5, 86],
+    [ 8,  9, 98, 23]
+])
+workers = ['Worker 1', 'Worker 2', 'Worker 3', 'Worker 4']
+jobs    = ['Job 1',    'Job 2',    'Job 3',    'Job 4']
+```
+- `cost_matrix[i][j]` = cost if worker `i` performs job `j`.  
+- Labels are used for printing pairs and naming nodes in the visualization.
+
+### (C) Run Hungarian
+```python
+row_ind, col_ind = linear_sum_assignment(cost_matrix)
+```
+- Produces two **index arrays** of optimal pairs.  
+- Example: if `row_ind=[0,1,2,3]` and `col_ind=[2,1,0,3]`, then:  
+  `(Worker 1→Job 3), (Worker 2→Job 2), (Worker 3→Job 1), (Worker 4→Job 4)`.
+
+### (D) Print Pairs & Compute Total Cost
+```python
+total_cost = 0
+for i in range(len(row_ind)):
+    row = row_ind[i]
+    col = col_ind[i]
+    cost = cost_matrix[row, col]
+    total_cost += cost
+    print(f"* Pair: {workers[row]} -> {jobs[col]} (Cost: {cost})")
+print(f"Total Minimum Cost: {total_cost}")
+```
+- Iterates through the optimal pairs, retrieves the cost from `cost_matrix[row, col]`, and accumulates it.
+
+### (E) Bipartite Graph Visualization
+```python
+B = nx.Graph()
+B.add_nodes_from(workers, bipartite=0)
+B.add_nodes_from(jobs,    bipartite=1)
+
+for i in range(len(workers)):
+    for j in range(len(jobs)):
+        B.add_edge(workers[i], jobs[j], weight=cost_matrix[i][j])
+
+solution_edges = [(workers[row_ind[i]], jobs[col_ind[i]]) for i in range(len(row_ind))]
+
+edge_colors, edge_widths = [], []
+for u, v in B.edges():
+    if (u, v) in solution_edges or (v, u) in solution_edges:
+        edge_colors.append('red');  edge_widths.append(2.5)
+    else:
+        edge_colors.append('gray'); edge_widths.append(0.5)
+
+pos = nx.bipartite_layout(B, workers)
+
+nx.draw_networkx_nodes(B, pos, nodelist=workers, node_color='skyblue',  node_size=2000, label='Workers')
+nx.draw_networkx_nodes(B, pos, nodelist=jobs,    node_color='lightgreen', node_size=2000, label='Jobs')
+nx.draw_networkx_edges(B, pos, edge_color=edge_colors, width=edge_widths)
+nx.draw_networkx_labels(B, pos, font_size=10)
+
+solution_edge_labels = {(u, v): B[u][v]['weight'] for (u, v) in solution_edges}
+nx.draw_networkx_edge_labels(B, pos, edge_labels=solution_edge_labels, font_color='red')
+
+plt.title("Hungarian Algorithm - Optimal Assignment Visualization")
+plt.axis('off'); plt.show()
+```
+- **Builds a bipartite graph** with two partitions (workers & jobs).  
+- **Optimal assignment edges** are styled distinctly (red & thick).  
+- **Edge labels** show weights only for the optimal edges to keep the figure clean.
+
+---
+
+## 5) Complexity & Properties
+- **Hungarian (`linear_sum_assignment`):** `O(n³)` for `n × n`.  
+- **Graph build:** `O(V + E) ≈ O(n + n²)` for a full bipartite graph.  
+- **Drawing:** depends on layout and number of edges; trivial for `n=4`.
+
+**Correctness:**  
+- Produces a *matching* that **covers all rows** (and all columns if square), with **no conflicts** (one job per worker).  
+- The total minimum cost is the sum over the optimal pairs returned.
+
+---
+
+## 6) Common Customizations
+- **Matrix size:** `cost_matrix` can be `m × n` (rectangular). The solver still works; the result length is `k = min(m, n)` pairs.
+- **Maximization** (higher is better):  
+  ```python
+  row_ind, col_ind = linear_sum_assignment(cost_matrix, maximize=True)
+  ```
+  *Or* convert benefits to costs: `cost_matrix = max_val - benefit_matrix`.
+- **Forbidden pairs:** use a very large number or `np.inf` as the cost to forbid an assignment.
+- **Dynamic labels:** if `len(workers) != len(jobs)`, the solver will pair up to `min(len(workers), len(jobs))`.
+- **Visual:** tweak node/edge colors, `node_size`, and `font_size` to match your presentation needs.
+
+---
+
+## 7) Quick Validation (optional)
+Add the following checks after computing `row_ind`, `col_ind`:
+```python
+# No duplicate columns
+assert len(set(col_ind)) == len(col_ind)
+# Length matches the smaller dimension
+assert len(row_ind) == min(len(workers), len(jobs))
+# Total cost consistency
+calc = sum(cost_matrix[r, c] for r, c in zip(row_ind, col_ind))
+assert calc == total_cost
+```
+
+
+---
+
+
+
+
+
